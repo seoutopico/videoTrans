@@ -1,8 +1,9 @@
 streamlit
 openai-whisper
-moviepy
-ffmpeg-python
 torch
 numpy
 requests
 imageio[ffmpeg]
+ffmpeg-python
+llvmlite==0.39.1
+numba==0.56.4
