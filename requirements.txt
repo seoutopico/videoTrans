@@ -1,6 +1,5 @@
-streamlit==1.29.0
-whisper-timestamped==1.12.20
-moviepy==1.0.3
-torch==2.1.2
-numpy>=1.22.0
-ffmpeg-python==0.2.0
+streamlit
+whisper-timestamped
+moviepy
+numpy
+ffmpeg-python
