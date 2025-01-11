@@ -1,3 +1,7 @@
 streamlit
 openai-whisper
 moviepy
+ffmpeg-python
+torch
+numpy
+requests
