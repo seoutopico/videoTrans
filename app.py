@@ -2,67 +2,42 @@ import streamlit as st
 import whisper
 import tempfile
 import os
-import time
-
-def generar_txt_con_tiempos(segments):
-    """
-    segments es una lista de segmentos con la estructura:
-    [
-      {
-        'id': int,
-        'seek': float,
-        'start': float,
-        'end': float,
-        'text': str,
-        ...
-      },
-      ...
-    ]
-    Devolvemos el contenido del archivo .txt con timestamps y texto
-    """
-    texto = []
-    for seg in segments:
-        # Formateamos la marca de tiempo
-        inicio = time.strftime('%H:%M:%S', time.gmtime(seg["start"]))
-        fin = time.strftime('%H:%M:%S', time.gmtime(seg["end"]))
-        linea = f"[{inicio} - {fin}] {seg['text'].strip()}"
-        texto.append(linea)
-    return "\n".join(texto)
 
 def main():
-    st.title("Transcriptor de vídeo a texto con timestamps")
+    st.title("Transcriptor con Whisper (modelo tiny)")
 
-    # Cargamos el modelo de Whisper
-    model = whisper.load_model("base")
-
-    # Subida del vídeo
-    video_file = st.file_uploader("Sube tu archivo de vídeo aquí (formatos soportados: mp4, mov, etc.)", type=["mp4", "mov", "avi", "mkv"])
-
+    video_file = st.file_uploader("Sube tu archivo de vídeo", type=["mp4", "mov", "avi", "mkv"])
     if video_file is not None:
-        # Guardamos el vídeo temporalmente para procesarlo
+        st.write("Cargando modelo 'tiny' de Whisper...")
+        model = whisper.load_model("tiny")
+
+        st.write("Guardando vídeo en archivo temporal...")
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp_file:
             tmp_file.write(video_file.read())
             tmp_file_path = tmp_file.name
 
-        st.write("Procesando el archivo...")
+        st.write("Transcribiendo, espera un momento...")
+        result = model.transcribe(tmp_file_path)
+        os.remove(tmp_file_path)  # liberamos espacio
 
-        # Transcribimos el vídeo con Whisper
-        result = model.transcribe(tmp_file_path, verbose=False)
+        st.write("Transcripción completa:")
+        st.text(result["text"])
 
-        # Borramos el archivo temporal (opcional, si quieres ahorrar espacio)
-        os.remove(tmp_file_path)
+        segments = result["segments"]
+        texto_timestamps = []
+        for seg in segments:
+            inicio = seg['start']
+            fin = seg['end']
+            texto_seg = seg['text']
+            texto_timestamps.append(f"[{inicio:.2f} - {fin:.2f}] {texto_seg.strip()}")
+        texto_final = "\n".join(texto_timestamps)
 
-        # Generamos el texto con timestamps
-        texto_con_tiempos = generar_txt_con_tiempos(result["segments"])
+        st.write("Transcripción con marcas de tiempo:")
+        st.text(texto_final)
 
-        # Mostramos el resultado en pantalla
-        st.subheader("Transcripción con timestamps")
-        st.text(texto_con_tiempos)
-
-        # Botón para descargar la transcripción
         st.download_button(
             label="Descargar transcripción",
-            data=texto_con_tiempos,
+            data=texto_final,
             file_name="transcripcion.txt",
             mime="text/plain"
         )
