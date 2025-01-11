@@ -10,111 +10,67 @@ st.title("📝 Video a Texto")
 st.write("Sube un video y obtén su transcripción con marcas de tiempo")
 
 def process_video(video_path):
-    """Procesa el video y retorna la transcripción"""
-    try:
-        # Verificar que el archivo existe
-        if not os.path.exists(video_path):
-            raise FileNotFoundError(f"No se encontró el archivo: {video_path}")
-
-        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_audio:
-            # Cargar el video y verificar que tiene audio
-            video = VideoFileClip(video_path)
-            
-            if video.audio is None:
-                raise ValueError("El video no contiene audio")
-                
-            # Extraer audio
-            st.info("Extrayendo audio del video...")
-            video.audio.write_audiofile(
-                temp_audio.name,
-                codec='pcm_s16le',  # Codec más compatible
-                ffmpeg_params=["-ac", "1"],  # Convertir a mono
-                verbose=False
-            )
-            video.close()
-            
-            # Transcribir
-            st.info("Transcribiendo audio...")
-            model = whisper_timestamped.load_model("tiny", device="cpu")
-            result = whisper_timestamped.transcribe(model, temp_audio.name)
-            
-            # Limpiar
-            os.unlink(temp_audio.name)
-            return result
-            
-    except Exception as e:
-        st.error(f"Error procesando el video: {str(e)}")
-        if 'temp_audio' in locals() and os.path.exists(temp_audio.name):
-            os.unlink(temp_audio.name)
-        raise
+    with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_audio:
+        # Extraer audio
+        video = VideoFileClip(video_path)
+        video.audio.write_audiofile(temp_audio.name, verbose=False)
+        video.close()
+        
+        # Transcribir
+        model = whisper_timestamped.load_model("tiny.en", device="cpu")
+        result = whisper_timestamped.transcribe(model, temp_audio.name)
+        
+        # Limpiar
+        os.unlink(temp_audio.name)
+        return result
 
 def format_time(seconds):
-    """Convierte segundos a formato MM:SS"""
     return f"{int(seconds//60):02d}:{int(seconds%60):02d}"
 
-# Configurar el uploader para aceptar videos
-uploaded_file = st.file_uploader(
-    "Escoge un video", 
-    type=['mp4', 'avi', 'mov', 'mkv', 'webm'],
-    help="Formatos soportados: MP4, AVI, MOV, MKV, WEBM"
-)
+uploaded_file = st.file_uploader("Escoge un video", type=['mp4', 'avi', 'mov', 'mkv'])
 
 if uploaded_file is not None:
-    # Mostrar información del archivo
-    file_details = {
-        "Nombre": uploaded_file.name,
-        "Tamaño": f"{uploaded_file.size / (1024*1024):.2f} MB"
-    }
-    st.write("Detalles del archivo:")
-    for key, value in file_details.items():
-        st.write(f"- {key}: {value}")
-
-    # Guardar el archivo temporalmente
+    # Guardar archivo temporalmente
     temp_path = os.path.join("/tmp", uploaded_file.name)
     with open(temp_path, "wb") as f:
         f.write(uploaded_file.getbuffer())
     
     with st.spinner("Procesando video..."):
         try:
-            # Procesar el video
+            # Procesar video
             result = process_video(temp_path)
             
-            if result and 'segments' in result:
-                # Mostrar transcripción
-                st.success("¡Transcripción completada!")
-                st.subheader("Transcripción:")
-                
-                # Crear texto con timestamps
-                transcription = []
-                for segment in result['segments']:
-                    timestamp = format_time(segment['start'])
-                    transcription.append(f"[{timestamp}] {segment['text']}")
-                
-                # Mostrar y permitir descargar
-                transcript_text = "\n".join(transcription)
-                st.text_area("Texto completo:", transcript_text, height=300)
-                
-                # Botón de descarga
-                st.download_button(
-                    label="Descargar transcripción",
-                    data=transcript_text,
-                    file_name="transcripcion.txt",
-                    mime="text/plain"
-                )
-            else:
-                st.error("No se pudo generar la transcripción")
+            # Mostrar transcripción
+            st.subheader("Transcripción:")
+            
+            # Formatear con timestamps
+            transcription = []
+            for segment in result['segments']:
+                timestamp = format_time(segment['start'])
+                transcription.append(f"[{timestamp}] {segment['text']}")
+            
+            # Mostrar y permitir descargar
+            transcript_text = "\n".join(transcription)
+            st.text_area("Texto completo:", transcript_text, height=300)
+            
+            st.download_button(
+                label="Descargar transcripción",
+                data=transcript_text,
+                file_name="transcripcion.txt",
+                mime="text/plain"
+            )
             
         except Exception as e:
             st.error(f"Error procesando el video: {str(e)}")
         finally:
-            # Limpiar archivo temporal
             if os.path.exists(temp_path):
                 os.remove(temp_path)
 
 st.markdown("""
 ---
-### Notas:
-- El video debe contener audio para poder transcribirlo
-- Archivos más grandes pueden tardar más en procesarse
-- La transcripción funciona mejor con audio claro y sin ruido de fondo
+### Instrucciones:
+1. Sube un video con audio
+2. Espera mientras se procesa
+3. La transcripción aparecerá con marcas de tiempo
+4. Puedes descargar el resultado
 """)
