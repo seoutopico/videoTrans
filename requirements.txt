@@ -1,7 +1,6 @@
-streamlit
-openai-whisper
-torch
-numpy
-requests
-imageio[ffmpeg]
-ffmpeg-python
+streamlit==1.25.0
+torch==2.0.0+cpu
+torchaudio==2.0.0+cpu
+--extra-index-url https://download.pytorch.org/whl/cpu
+ffmpeg-python==0.2.0
+git+https://github.com/openai/whisper.git
