@@ -1,5 +1,4 @@
 import streamlit as st
-from moviepy.editor import VideoFileClip
 import whisper
 import tempfile
 import os
