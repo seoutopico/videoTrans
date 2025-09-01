@@ -1,69 +1,85 @@
-import streamlit as st
-import whisper
-import tempfile
 import os
+import tempfile
+from pathlib import Path
 
-st.set_page_config(
-    page_title="Video Transcriber",
-    page_icon="🎥",
-    layout="centered"
-)
+import streamlit as st
+from moviepy.editor import VideoFileClip
+import whisper
 
-def extract_audio(video_path, output_path):
-    """Extrae el audio de un video y lo guarda como archivo temporal"""
-    video = VideoFileClip(video_path)
-    audio = video.audio
-    audio.write_audiofile(output_path)
-    video.close()
+st.set_page_config(page_title="Video Transcriber", page_icon="🎥", layout="centered")
+
+@st.cache_resource(show_spinner=False)
+def load_model(model_name: str):
+    # carga una única vez por proceso
+    return whisper.load_model(model_name)
+
+def extract_audio(video_path: str, output_path: str):
+    """Extrae el audio de un vídeo a WAV (requiere ffmpeg a nivel sistema)."""
+    clip = VideoFileClip(video_path)
+    audio = clip.audio
+    audio.write_audiofile(output_path, verbose=False, logger=None)
     audio.close()
+    clip.close()
 
-def transcribe_audio(audio_path):
-    """Transcribe el audio usando whisper"""
-    model = whisper.load_model("base")  # Usamos el modelo base para ahorrar recursos
-    result = model.transcribe(audio_path)
-    return result["text"]
+def transcribe_audio(audio_path: str, model_name: str, language_hint: str | None):
+    model = load_model(model_name)
+    opts = {}
+    if language_hint and language_hint != "auto":
+        opts["language"] = language_hint
+    result = model.transcribe(audio_path, **opts)
+    return result.get("text", "").strip()
 
 def main():
-    st.title("📽️ Transcriptor de Videos")
-    st.write("Sube un video para obtener su transcripción")
-    
-    # Widget para subir archivo
-    video_file = st.file_uploader("Sube tu video", type=['mp4', 'avi', 'mov'])
-    
-    if video_file:
+    st.title("📽️ Transcriptor de vídeos")
+    st.write("Sube un vídeo y obtén la transcripción en texto plano.")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        model_name = st.selectbox(
+            "Modelo Whisper",
+            ["base", "small", "medium"],
+            index=0,
+            help="Modelos mayores = +precisión y +tiempo/CPU.",
+        )
+    with col2:
+        language_hint = st.selectbox(
+            "Idioma (opcional)",
+            ["auto", "es", "en", "pt", "fr", "de", "it", "gl", "ca"],
+            index=0,
+            help="Deja 'auto' para detección automática.",
+        )
+
+    video_file = st.file_uploader("Sube tu vídeo", type=["mp4", "avi", "mov", "mkv"])
+
+    if video_file is not None:
         try:
-            # Crear directorio temporal para procesar archivos
             with tempfile.TemporaryDirectory() as temp_dir:
-                # Guardar video subido
-                video_path = os.path.join(temp_dir, "temp_video.mp4")
-                with open(video_path, "wb") as f:
-                    f.write(video_file.read())
-                
-                # Mostrar mensaje de procesamiento
-                with st.spinner("Procesando video... Por favor espera."):
-                    # Extraer y guardar audio
-                    audio_path = os.path.join(temp_dir, "temp_audio.wav")
-                    extract_audio(video_path, audio_path)
-                    
-                    # Transcribir audio
-                    transcription = transcribe_audio(audio_path)
-                
-                # Mostrar resultados
+                temp_dir = Path(temp_dir)
+
+                video_path = temp_dir / "input_video"
+                video_path.write_bytes(video_file.read())
+
+                st.info("Extrayendo audio…")
+                audio_path = temp_dir / "audio.wav"
+                extract_audio(str(video_path), str(audio_path))
+
+                with st.spinner("Transcribiendo…"):
+                    text = transcribe_audio(str(audio_path), model_name, language_hint)
+
                 st.success("¡Transcripción completada!")
-                st.write("### Transcripción:")
-                st.write(transcription)
-                
-                # Opción para descargar transcripción
+                st.subheader("Transcripción")
+                st.write(text if text else "_(vacía)_")
+
                 st.download_button(
                     label="Descargar transcripción",
-                    data=transcription,
+                    data=text,
                     file_name="transcripcion.txt",
-                    mime="text/plain"
+                    mime="text/plain",
                 )
-                
+
         except Exception as e:
-            st.error(f"Error durante el procesamiento: {str(e)}")
-            st.write("Por favor, intenta con un video más corto o en otro formato.")
+            st.error(f"Error durante el procesamiento: {e}")
+            st.caption("Prueba con un vídeo más corto o distinto códec.")
 
 if __name__ == "__main__":
     main()
