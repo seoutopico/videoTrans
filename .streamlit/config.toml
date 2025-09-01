@@ -2,3 +2,5 @@
 headless = true
 enableCORS = true
 enableXsrfProtection = true
+maxUploadSize = 1024
+
