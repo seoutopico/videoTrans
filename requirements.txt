@@ -1,4 +1,6 @@
-streamlit
-openai-whisper
-moviepy
-Numpy
+numpy==1.26.4
+streamlit==1.36.0
+moviepy==1.0.3
+openai-whisper==20231117
+torch==2.3.1
+python-dotenv==1.0.1
